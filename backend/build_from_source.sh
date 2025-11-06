@@ -53,18 +53,44 @@ fi
 tar -xjf libnetfilter_queue-1.0.5.tar.bz2
 cd libnetfilter_queue-1.0.5
 
+# Check if libmnl library exists
+if ldconfig -p | grep -q libmnl; then
+    echo "✅ libmnl found in system"
+    LIBMNL_LIBS="-lmnl"
+    LIBMNL_CFLAGS=""
+else
+    echo "⚠️  libmnl not found, trying without it..."
+    # Some systems don't need libmnl explicitly
+    LIBMNL_LIBS=""
+    LIBMNL_CFLAGS=""
+fi
+
 # Set environment variables to bypass pkg-config requirement
 export LIBNFNETLINK_CFLAGS="-I/usr/include/libnfnetlink"
 export LIBNFNETLINK_LIBS="-L/usr/lib -lnfnetlink"
-export LIBMNL_CFLAGS=""
-export LIBMNL_LIBS="-lmnl"
+export LIBMNL_CFLAGS="$LIBMNL_CFLAGS"
+export LIBMNL_LIBS="$LIBMNL_LIBS"
 
-# Configure without pkg-config
-PKG_CONFIG=/bin/false ./configure --prefix=/usr \
+# Configure without pkg-config - use autoconf cache
+cat > config.cache << EOF
+ac_cv_path_PKG_CONFIG=/bin/false
+LIBNFNETLINK_CFLAGS="-I/usr/include/libnfnetlink"
+LIBNFNETLINK_LIBS="-L/usr/lib -lnfnetlink"
+LIBMNL_CFLAGS="$LIBMNL_CFLAGS"
+LIBMNL_LIBS="$LIBMNL_LIBS"
+EOF
+
+# Configure with cached values
+PKG_CONFIG=/bin/false ./configure --prefix=/usr --cache-file=config.cache \
     LIBNFNETLINK_CFLAGS="-I/usr/include/libnfnetlink" \
     LIBNFNETLINK_LIBS="-L/usr/lib -lnfnetlink" \
-    LIBMNL_CFLAGS="" \
-    LIBMNL_LIBS="-lmnl"
+    LIBMNL_CFLAGS="$LIBMNL_CFLAGS" \
+    LIBMNL_LIBS="$LIBMNL_LIBS" || {
+    echo "⚠️  Configure failed, trying without explicit LIBMNL..."
+    PKG_CONFIG=/bin/false ./configure --prefix=/usr \
+        LIBNFNETLINK_CFLAGS="-I/usr/include/libnfnetlink" \
+        LIBNFNETLINK_LIBS="-L/usr/lib -lnfnetlink"
+}
 
 make
 sudo make install
