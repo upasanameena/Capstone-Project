@@ -53,7 +53,15 @@ fi
 tar -xjf libnetfilter_queue-1.0.5.tar.bz2
 cd libnetfilter_queue-1.0.5
 
-./configure --prefix=/usr
+# Set environment variables to bypass pkg-config requirement
+export LIBNFNETLINK_CFLAGS="-I/usr/include/libnfnetlink"
+export LIBNFNETLINK_LIBS="-L/usr/lib -lnfnetlink"
+
+# Configure without pkg-config
+PKG_CONFIG=/bin/false ./configure --prefix=/usr \
+    LIBNFNETLINK_CFLAGS="-I/usr/include/libnfnetlink" \
+    LIBNFNETLINK_LIBS="-L/usr/lib -lnfnetlink"
+
 make
 sudo make install
 
