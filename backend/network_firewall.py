@@ -4,14 +4,28 @@ Network Layer Firewall - Dual-Layer Firewall System
 Intercepts packets at network layer and applies ML-based blocking
 """
 
-import netfilterqueue
+try:
+    import netfilterqueue
+    NETFILTERQUEUE_AVAILABLE = True
+except ImportError:
+    print("[WARNING] netfilterqueue not available. Network firewall will not work.")
+    print("[INFO] Install with: sudo apt install -y libnfnetlink-dev libnetfilter-queue-dev && pip install netfilterqueue")
+    NETFILTERQUEUE_AVAILABLE = False
+
 import socket
 import struct
 import threading
 import time
 import csv
 import os
-from scapy.all import IP, TCP, UDP, ICMP
+
+try:
+    from scapy.all import IP, TCP, UDP, ICMP
+    SCAPY_AVAILABLE = True
+except ImportError:
+    print("[WARNING] scapy not available. Install with: pip install scapy")
+    SCAPY_AVAILABLE = False
+
 import numpy as np
 import pickle
 
@@ -235,6 +249,20 @@ def main():
     """Main network firewall function"""
     import signal
     import sys
+    
+    # Check if required libraries are available
+    if not NETFILTERQUEUE_AVAILABLE:
+        print("[ERROR] netfilterqueue is not installed.")
+        print("[INFO] To install:")
+        print("  1. sudo apt install -y libnfnetlink-dev libnetfilter-queue-dev libmnl-dev")
+        print("  2. pip install netfilterqueue")
+        print("[INFO] Continuing without network firewall...")
+        sys.exit(1)
+    
+    if not SCAPY_AVAILABLE:
+        print("[ERROR] scapy is not installed.")
+        print("[INFO] Install with: pip install scapy")
+        sys.exit(1)
     
     def signal_handler(sig, frame):
         print("\n[NETWORK FIREWALL] Shutting down...")
