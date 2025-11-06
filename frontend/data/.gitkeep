@@ -1,0 +1,7 @@
+# Place your CSV files here:
+# - bad-requests.csv
+# - good-requests.csv
+# - malware-payloads.csv
+# - benign-payloads.csv
+# - post-analysis.csv
+# - ml-training.csv
