@@ -2,12 +2,13 @@ import express from "express";
 import fs from "fs";
 import path from "path";
 import url from "url";
+import { execSync } from "child_process";
 
 const __filename = url.fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const port = process.env.PORT || 5174; // separate from Vite dev server
+const port = process.env.PORT || 5174;
 
 // Allow local access from the Vite dev server
 app.use((req, res, next) => {
@@ -18,7 +19,6 @@ app.use((req, res, next) => {
 });
 
 // Paths to CSVs in the backend WAF project (read-only)
-// Default: ~/Documents/projects/Web_Application_Firewall (Kali Linux VM structure)
 const backendRoot = process.env.BACKEND_ROOT
 	? path.resolve(process.env.BACKEND_ROOT)
 	: path.resolve(process.env.HOME || process.env.USERPROFILE || __dirname, "Documents/projects/Web_Application_Firewall");
@@ -34,30 +34,82 @@ function findCsvFile(basePath, possibleNames) {
 	return null;
 }
 
+// Auto-create symlinks for missing GET CSVs
+function ensureGetCsvLinks() {
+	const dataCollectionPath = path.join(backendRoot, "Data_Collection");
+	const goodWordsPath = path.join(backendRoot, "good_words.csv");
+	const badWordsPath = path.join(backendRoot, "bad_words.csv");
+	const goodReqPath = path.join(dataCollectionPath, "Good_req.csv");
+	const badReqPath = path.join(dataCollectionPath, "Bad_req.csv");
+
+	// Create Data_Collection directory if it doesn't exist
+	if (!fs.existsSync(dataCollectionPath)) {
+		fs.mkdirSync(dataCollectionPath, { recursive: true });
+	}
+
+	// If Good_req.csv doesn't exist but good_words.csv does, create symlink
+	if (!fs.existsSync(goodReqPath) && fs.existsSync(goodWordsPath)) {
+		try {
+			if (process.platform === "win32") {
+				// Windows: use junction or copy
+				fs.copyFileSync(goodWordsPath, goodReqPath);
+			} else {
+				// Unix: create symlink
+				fs.symlinkSync(goodWordsPath, goodReqPath);
+			}
+			console.log(`Created symlink: ${goodReqPath} -> ${goodWordsPath}`);
+		} catch (e) {
+			console.warn(`Could not create symlink for Good_req.csv: ${e.message}`);
+		}
+	}
+
+	// If Bad_req.csv doesn't exist but bad_words.csv does, create symlink
+	if (!fs.existsSync(badReqPath) && fs.existsSync(badWordsPath)) {
+		try {
+			if (process.platform === "win32") {
+				fs.copyFileSync(badWordsPath, badReqPath);
+			} else {
+				fs.symlinkSync(badWordsPath, badReqPath);
+			}
+			console.log(`Created symlink: ${badReqPath} -> ${badWordsPath}`);
+		} catch (e) {
+			console.warn(`Could not create symlink for Bad_req.csv: ${e.message}`);
+		}
+	}
+}
+
 const dataCollectionPath = path.join(backendRoot, "Data_Collection");
+
+// search across both Data_Collection and backendRoot with flexible names
+function searchAcrossDirs(names) {
+	const candidates = [
+		...names.map((n) => path.join(dataCollectionPath, n)),
+		...names.map((n) => path.join(backendRoot, n)),
+	];
+	for (const p of candidates) {
+		if (fs.existsSync(p)) return p;
+	}
+	return candidates[0];
+}
+
+// Ensure symlinks exist before setting paths
+ensureGetCsvLinks();
+
 const paths = {
-	goodReq: findCsvFile(dataCollectionPath, ["Good_req.csv", "good_req.csv", "Good_req.CSV"]) || 
-	         path.join(dataCollectionPath, "Good_req.csv"),
-	badReq: findCsvFile(dataCollectionPath, ["Bad_req.csv", "bad_req.csv", "Bad_req.CSV"]) || 
-	        path.join(dataCollectionPath, "Bad_req.csv"),
-	benignPayloads: findCsvFile(backendRoot, ["benign_payloads.csv", "Benign_payloads.csv"]) || 
-	                path.join(backendRoot, "benign_payloads.csv"),
-	maliciousPayloads: findCsvFile(backendRoot, ["malicious_payloads.csv", "Malicious_payloads.csv"]) || 
-	                   path.join(backendRoot, "malicious_payloads.csv"),
-	networkBlocked: findCsvFile(backendRoot, ["network_blocked.csv", "Network_blocked.csv"]) || 
-	                path.join(backendRoot, "network_blocked.csv"),
-	networkAllowed: findCsvFile(backendRoot, ["network_allowed.csv", "Network_allowed.csv"]) || 
-	               path.join(backendRoot, "network_allowed.csv"),
+	goodReq: searchAcrossDirs(["Good_req.csv", "good_req.csv", "good_words.csv", "Good_req.CSV"]),
+	badReq: searchAcrossDirs(["Bad_req.csv", "bad_req.csv", "bad_words.csv", "Bad_req.CSV"]),
+	benignPayloads: searchAcrossDirs(["benign_payloads.csv", "Benign_payloads.csv"]),
+	maliciousPayloads: searchAcrossDirs(["malicious_payloads.csv", "Malicious_payloads.csv"]),
+	networkBlocked: searchAcrossDirs(["network_blocked.csv", "Network_blocked.csv"]),
+	networkAllowed: searchAcrossDirs(["network_allowed.csv", "Network_allowed.csv"]),
 };
 
 function safeReadFileSync(filePath) {
 	try {
 		if (!fs.existsSync(filePath)) {
-			console.error(`CSV file not found: ${filePath}`);
 			return "";
 		}
 		const content = fs.readFileSync(filePath, "utf8");
-		console.log(`Successfully read ${filePath}, size: ${content.length} bytes`);
 		return content;
 	} catch (e) {
 		console.error(`Error reading ${filePath}:`, e.message);
@@ -66,7 +118,7 @@ function safeReadFileSync(filePath) {
 }
 
 function countCsvRows(csvText, hasHeader) {
-	if (!csvText) return 0;
+	if (!csvText || csvText.trim().length === 0) return 0;
 	const lines = csvText.split(/\r?\n/).filter((l) => l.trim().length > 0);
 	if (lines.length === 0) return 0;
 	return hasHeader ? Math.max(lines.length - 1, 0) : lines.length;
@@ -109,39 +161,34 @@ app.get("/api/stats/post-payloads", (req, res) => {
 app.get("/api/stats/network-firewall", (req, res) => {
 	const blockedCsv = safeReadFileSync(paths.networkBlocked);
 	const allowedCsv = safeReadFileSync(paths.networkAllowed);
-	const blockedCount = countCsvRows(blockedCsv, true); // Has header
-	const allowedCount = countCsvRows(allowedCsv, true); // Has header
+	const blockedCount = countCsvRows(blockedCsv, true);
+	const allowedCount = countCsvRows(allowedCsv, true);
 	console.log(`Network stats: blocked=${blockedCount}, allowed=${allowedCount}`);
-	res.json({ blockedCount, allowedCount });
+	res.json({ allowedCount, blockedCount });
 });
 
 // ML Model Training Overview (derived time-series from combined CSVs)
-// We approximate training progression as cumulative ratios across chunks of appended rows.
 app.get("/api/metrics/training", (req, res) => {
-	const chunkSize = Number(req.query.chunkSize) || 200; // rows per point
+	const chunkSize = Number(req.query.chunkSize) || 200;
 	const goodCsv = safeReadFileSync(paths.goodReq);
 	const badCsv = safeReadFileSync(paths.badReq);
 	const benignCsv = safeReadFileSync(paths.benignPayloads);
 	const maliciousCsv = safeReadFileSync(paths.maliciousPayloads);
 
-	const goodLines = goodCsv
-		.split(/\r?\n/)
-		.filter((l) => l.trim().length > 0);
-	const badLines = badCsv
-		.split(/\r?\n/)
-		.filter((l) => l.trim().length > 0);
-	// remove headers
-	if (goodLines.length && goodLines[0].toLowerCase().includes("method,")) goodLines.shift();
-	if (badLines.length && badLines[0].toLowerCase().includes("method,")) badLines.shift();
+	const goodLines = goodCsv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+	const badLines = badCsv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+	
+	// Remove headers
+	if (goodLines.length && (goodLines[0].toLowerCase().includes("method,") || goodLines[0].toLowerCase().includes("path,"))) {
+		goodLines.shift();
+	}
+	if (badLines.length && (badLines[0].toLowerCase().includes("method,") || badLines[0].toLowerCase().includes("path,"))) {
+		badLines.shift();
+	}
 
-	const benignLines = benignCsv
-		.split(/\r?\n/)
-		.filter((l) => l.trim().length > 0);
-	const maliciousLines = maliciousCsv
-		.split(/\r?\n/)
-		.filter((l) => l.trim().length > 0);
+	const benignLines = benignCsv.split(/\r?\n/).filter((l) => l.trim().length > 0);
+	const maliciousLines = maliciousCsv.split(/\r?\n/).filter((l) => l.trim().length > 0);
 
-	// Build time-series by chunks (append order assumed)
 	const totalPoints = Math.max(
 		Math.ceil(goodLines.length / chunkSize),
 		Math.ceil(badLines.length / chunkSize),
@@ -150,10 +197,7 @@ app.get("/api/metrics/training", (req, res) => {
 	);
 
 	const points = [];
-	let cumGood = 0,
-		cumBad = 0,
-		cumBenign = 0,
-		cumMalicious = 0;
+	let cumGood = 0, cumBad = 0, cumBenign = 0, cumMalicious = 0;
 
 	for (let i = 0; i < totalPoints; i++) {
 		const giStart = i * chunkSize;
@@ -174,10 +218,14 @@ app.get("/api/metrics/training", (req, res) => {
 		const payloadTotal = cumBenign + cumMalicious;
 		const goodRate = urlTotal > 0 ? cumGood / urlTotal : 0;
 		const benignRate = payloadTotal > 0 ? cumBenign / payloadTotal : 0;
-		// Simple combined accuracy proxy
 		const accuracy = urlTotal + payloadTotal > 0 ? (goodRate + benignRate) / 2 : 0;
 
-		points.push({ step: i + 1, goodRate, benignRate, accuracy: Math.round(accuracy * 1000) / 10 });
+		points.push({ 
+			step: i + 1, 
+			goodRate: Math.round(goodRate * 1000) / 10, 
+			benignRate: Math.round(benignRate * 1000) / 10, 
+			accuracy: Math.round(accuracy * 1000) / 10 
+		});
 	}
 
 	res.json({ points });
@@ -203,7 +251,7 @@ app.listen(port, () => {
 	if (!allFound) {
 		console.log(`\n⚠️  WARNING: Some CSV files are missing!`);
 		console.log(`   Set BACKEND_ROOT environment variable to point to your WAF project:`);
-		console.log(`   export BACKEND_ROOT=/home/kali/Documents/projects/Web_Application_Firewall`);
+		console.log(`   export BACKEND_ROOT=${backendRoot}`);
 		console.log(`   Then restart: npm run api\n`);
 	} else {
 		console.log(`\n✅ All CSV files found! Ready to serve data.\n`);
@@ -212,5 +260,3 @@ app.listen(port, () => {
 	console.log(`Debug endpoint: http://localhost:${port}/api/debug/paths`);
 	console.log(`\n`);
 });
-
-

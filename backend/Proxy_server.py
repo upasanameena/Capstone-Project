@@ -26,6 +26,25 @@ MODEL_PATH = 'training_model.pkl'
 MALICIOUS_CSV = 'malicious_payloads.csv'
 BENIGN_CSV = 'benign_payloads.csv'
 
+# GET request CSV paths
+DATA_COLLECTION_DIR = 'Data_Collection'
+GOOD_REQ_CSV = os.path.join(DATA_COLLECTION_DIR, 'Good_req.csv')
+BAD_REQ_CSV = os.path.join(DATA_COLLECTION_DIR, 'Bad_req.csv')
+
+# Ensure Data_Collection directory exists
+os.makedirs(DATA_COLLECTION_DIR, exist_ok=True)
+
+# Initialize GET request CSVs with headers if they don't exist
+if not os.path.exists(GOOD_REQ_CSV):
+    with open(GOOD_REQ_CSV, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['method', 'path', 'timestamp'])
+
+if not os.path.exists(BAD_REQ_CSV):
+    with open(BAD_REQ_CSV, 'w', newline='', encoding='utf-8') as f:
+        writer = csv.writer(f)
+        writer.writerow(['method', 'path', 'timestamp'])
+
 # Load trained model once
 with open(MODEL_PATH, 'rb') as f:
     model = pickle.load(f)
@@ -222,6 +241,10 @@ class WAFServer(SimpleHTTPRequestHandler):
         # Append payload to respective CSV
         if is_malicious:
             append_payload_to_csv(MALICIOUS_CSV, path, body)
+            # Also log to Bad_req.csv for GET requests
+            with open(BAD_REQ_CSV, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(['GET', path, time.strftime('%Y-%m-%d %H:%M:%S')])
             
             # Build detailed reason
             reasons = []
@@ -253,6 +276,10 @@ class WAFServer(SimpleHTTPRequestHandler):
         else:
             # Append benign payload
             append_payload_to_csv(BENIGN_CSV, path, body)
+            # Also log to Good_req.csv for GET requests
+            with open(GOOD_REQ_CSV, 'a', newline='', encoding='utf-8') as f:
+                writer = csv.writer(f)
+                writer.writerow(['GET', path, time.strftime('%Y-%m-%d %H:%M:%S')])
 
             self.send_response(200)
             self.send_header("Content-type", "text/plain")
