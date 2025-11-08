@@ -159,6 +159,8 @@ def main() -> None:
     print(f"  Filter: {bpf_filter}")
     print(f"  CSV files: {ALLOWED_CSV}, {BLOCKED_CSV}")
     print("")
+    print("Waiting for packets... (generate traffic to test: ping 8.8.8.8)")
+    print("")
 
     # Start sniffing
     try:
