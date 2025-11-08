@@ -191,7 +191,30 @@ echo ""
 
 # Wait for network firewall to process
 echo "Waiting for network firewall to process packets..."
-sleep 5
+sleep 10
+
+# Verify packets were captured
+echo ""
+echo "Verifying packet capture..."
+CURRENT_ALLOWED=$(get_count "$ALLOWED_CSV")
+CURRENT_BLOCKED=$(get_count "$BLOCKED_CSV")
+
+if [ $CURRENT_ALLOWED -eq $BEFORE_ALLOWED ] && [ $CURRENT_BLOCKED -eq $BEFORE_BLOCKED ]; then
+    echo "⚠️  WARNING: No new packets detected!"
+    echo "   This means the network firewall may not be capturing packets."
+    echo "   Check:"
+    echo "     1. Is network firewall running? (ps aux | grep network_sniffer)"
+    echo "     2. Is it running with sudo? (required for packet capture)"
+    echo "     3. Check logs: tail -f $BACKEND_DIR/network.log"
+    echo ""
+    echo "   Try restarting network firewall:"
+    echo "     sudo pkill -f network_sniffer_fallback.py"
+    echo "     cd $BACKEND_DIR"
+    echo "     source venv/bin/activate"
+    echo "     export BACKEND_ROOT=$BACKEND_DIR"
+    echo "     sudo -E env BACKEND_ROOT=\"\$BACKEND_ROOT\" python3 network_sniffer_fallback.py"
+    echo ""
+fi
 
 # ============================================================================
 # FINAL STATISTICS
