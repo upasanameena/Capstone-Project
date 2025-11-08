@@ -300,19 +300,19 @@ echo ""
 
 # Normal traffic (ALLOWED)
 echo "  → Normal traffic (ALLOWED)..."
-echo "    - DNS queries..."
-for i in {1..20}; do
-    ping -c 1 8.8.8.8 > /dev/null 2>&1
-    ping -c 1 1.1.1.1 > /dev/null 2>&1
+echo "    - DNS queries (with timeout)..."
+for i in {1..10}; do
+    timeout 2 ping -c 1 8.8.8.8 > /dev/null 2>&1 || true
+    timeout 2 ping -c 1 1.1.1.1 > /dev/null 2>&1 || true
 done
 
-echo "    - HTTP/HTTPS requests..."
-for i in {1..30}; do
-    curl -s http://example.com > /dev/null
-    curl -s https://www.google.com > /dev/null 2>&1
+echo "    - HTTP/HTTPS requests (with timeout)..."
+for i in {1..10}; do
+    timeout 3 curl -s http://example.com > /dev/null 2>&1 || true
+    timeout 3 curl -s https://www.google.com > /dev/null 2>&1 || true
 done
 
-echo "    - Normal port connections..."
+echo "    - Normal port connections (with timeout)..."
 for port in 80 443 22 53; do
     timeout 1 bash -c "echo > /dev/tcp/example.com/$port" 2>/dev/null || true
     timeout 1 bash -c "echo > /dev/tcp/www.google.com/$port" 2>/dev/null || true
@@ -329,21 +329,21 @@ done
 # Port scanning simulation
 echo "  → Port scanning simulation..."
 if command -v nmap &> /dev/null; then
-    echo "    - Running nmap scan..."
-    nmap -p 1-50 127.0.0.1 > /dev/null 2>&1
+    echo "    - Running nmap scan (quick scan)..."
+    timeout 10 nmap -p 1-30 127.0.0.1 > /dev/null 2>&1 || true
 else
-    echo "    - Manual port scan..."
-    for port in {20..70}; do
-        timeout 0.2 bash -c "echo > /dev/tcp/127.0.0.1/$port" 2>/dev/null || true
+    echo "    - Manual port scan (quick)..."
+    for port in {20..50}; do
+        timeout 0.1 bash -c "echo > /dev/tcp/127.0.0.1/$port" 2>/dev/null || true
     done
 fi
 
-# Multiple connections
-echo "  → Multiple simultaneous connections..."
-for i in {1..20}; do
-    curl -s http://example.com > /dev/null &
+# Multiple connections (limited)
+echo "  → Multiple simultaneous connections (limited)..."
+for i in {1..5}; do
+    timeout 2 curl -s http://example.com > /dev/null 2>&1 &
 done
-wait
+wait 2>/dev/null || true
 
 echo "  ✓ Generated network traffic samples"
 echo ""
