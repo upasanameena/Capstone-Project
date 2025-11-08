@@ -3,7 +3,7 @@ import csv
 import re
 import signal
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 try:
     from scapy.all import sniff, TCP, UDP, IP, Raw
@@ -108,7 +108,7 @@ def classify_packet(pkt) -> tuple[str, str]:
 
 
 def handle_packet(pkt) -> None:
-    now = datetime.utcnow().isoformat()
+    now = datetime.now(timezone.utc).isoformat()
     ip = pkt.getlayer(IP)
     src_ip = ip.src if ip else "-"
     dst_ip = ip.dst if ip else "-"
