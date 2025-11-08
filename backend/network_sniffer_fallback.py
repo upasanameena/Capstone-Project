@@ -123,8 +123,12 @@ def handle_packet(pkt) -> None:
 
     if decision == "BLOCK":
         log_row(BLOCKED_CSV, row)
+        print(f"[BLOCKED] {src_ip}:{sport} -> {dst_ip}:{dport} ({reason})")
     else:
         log_row(ALLOWED_CSV, row)
+        # Only print every 100th allowed packet to avoid spam
+        if int(time.time()) % 10 == 0:  # Print occasionally
+            print(f"[ALLOWED] {src_ip}:{sport} -> {dst_ip}:{dport}")
 
 
 def main() -> None:
@@ -150,13 +154,27 @@ def main() -> None:
     iface = os.environ.get("IFACE")
     bpf_filter = os.environ.get("BPF", "ip")  # sniff only IP by default
 
+    print(f"Starting packet capture...")
+    print(f"  Interface: {iface if iface else 'auto-detect'}")
+    print(f"  Filter: {bpf_filter}")
+    print(f"  CSV files: {ALLOWED_CSV}, {BLOCKED_CSV}")
+    print("")
+
     # Start sniffing
-    sniff(
-        iface=iface,
-        filter=bpf_filter,
-        prn=handle_packet,
-        store=False,
-    )
+    try:
+        sniff(
+            iface=iface,
+            filter=bpf_filter,
+            prn=handle_packet,
+            store=False,
+        )
+    except KeyboardInterrupt:
+        print("\nStopping sniffer...")
+        raise SystemExit(0)
+    except Exception as e:
+        print(f"\n[ERROR] Sniffing failed: {e}")
+        print("Try running with sudo or check network interface permissions")
+        raise
 
 
 if __name__ == "__main__":
