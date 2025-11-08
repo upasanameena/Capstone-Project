@@ -143,7 +143,9 @@ app.get("/api/stats/get-requests", (req, res) => {
 	const badCsv = safeReadFileSync(paths.badReq);
 	const goodCount = countCsvRows(goodCsv, true);
 	const badCount = countCsvRows(badCsv, true);
-	console.log(`GET stats: good=${goodCount}, bad=${badCount}`);
+	console.log(`[${new Date().toISOString()}] GET stats: good=${goodCount}, bad=${badCount}`);
+	console.log(`  Good file: ${paths.goodReq} (exists: ${fs.existsSync(paths.goodReq)})`);
+	console.log(`  Bad file: ${paths.badReq} (exists: ${fs.existsSync(paths.badReq)})`);
 	res.json({ goodCount, badCount });
 });
 
@@ -163,7 +165,9 @@ app.get("/api/stats/network-firewall", (req, res) => {
 	const allowedCsv = safeReadFileSync(paths.networkAllowed);
 	const blockedCount = countCsvRows(blockedCsv, true);
 	const allowedCount = countCsvRows(allowedCsv, true);
-	console.log(`Network stats: blocked=${blockedCount}, allowed=${allowedCount}`);
+	console.log(`[${new Date().toISOString()}] Network stats: blocked=${blockedCount}, allowed=${allowedCount}`);
+	console.log(`  Blocked file: ${paths.networkBlocked} (exists: ${fs.existsSync(paths.networkBlocked)})`);
+	console.log(`  Allowed file: ${paths.networkAllowed} (exists: ${fs.existsSync(paths.networkAllowed)})`);
 	res.json({ allowedCount, blockedCount });
 });
 
