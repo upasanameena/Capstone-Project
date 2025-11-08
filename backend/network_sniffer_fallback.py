@@ -13,7 +13,14 @@ except Exception as exc:  # pragma: no cover
     )
 
 
-BACKEND_ROOT = os.environ.get("BACKEND_ROOT", os.path.abspath(os.path.dirname(__file__)))
+# Get BACKEND_ROOT from environment, or use script's directory
+BACKEND_ROOT = os.environ.get("BACKEND_ROOT")
+if not BACKEND_ROOT:
+    # Default to the directory where this script is located
+    BACKEND_ROOT = os.path.abspath(os.path.dirname(__file__))
+else:
+    BACKEND_ROOT = os.path.abspath(BACKEND_ROOT)
+
 ALLOWED_CSV = os.path.join(BACKEND_ROOT, "network_allowed.csv")
 BLOCKED_CSV = os.path.join(BACKEND_ROOT, "network_blocked.csv")
 

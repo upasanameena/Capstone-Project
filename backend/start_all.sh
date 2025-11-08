@@ -83,7 +83,9 @@ sleep 2
 echo "[5/6] Starting Network Layer Firewall (Fallback Sniffer)..."
 cd "$BACKEND_DIR"
 export BACKEND_ROOT="$BACKEND_DIR"
-nohup sudo -E python network_sniffer_fallback.py > network.log 2>&1 &
+echo "   BACKEND_ROOT set to: $BACKEND_ROOT"
+echo "   CSV files will be written to: $BACKEND_DIR"
+nohup sudo -E env BACKEND_ROOT="$BACKEND_DIR" python network_sniffer_fallback.py > network.log 2>&1 &
 NETWORK_PID=$!
 echo "   Network Firewall PID: $NETWORK_PID"
 sleep 2
