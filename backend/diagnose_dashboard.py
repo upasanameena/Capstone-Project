@@ -10,7 +10,9 @@ This script checks:
 import os
 import sys
 import csv
-import requests
+import json
+import urllib.request
+import urllib.error
 from pathlib import Path
 
 def check_csv_file(filepath, name):
@@ -70,18 +72,23 @@ def check_api_endpoint(url, name):
     print('='*60)
     
     try:
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            print(f"✓ API responded successfully")
-            print(f"✓ Response: {data}")
-            return True, data
+        req = urllib.request.Request(url)
+        with urllib.request.urlopen(req, timeout=5) as response:
+            status_code = response.getcode()
+            if status_code == 200:
+                data_str = response.read().decode('utf-8')
+                data = json.loads(data_str)
+                print(f"✓ API responded successfully")
+                print(f"✓ Response: {data}")
+                return True, data
+            else:
+                print(f"❌ API returned status code: {status_code}")
+                return False, None
+    except urllib.error.URLError as e:
+        if isinstance(e.reason, ConnectionRefusedError) or "Connection refused" in str(e):
+            print(f"❌ Cannot connect to API (is it running on port 5174?)")
         else:
-            print(f"❌ API returned status code: {response.status_code}")
-            print(f"   Response: {response.text}")
-            return False, None
-    except requests.exceptions.ConnectionError:
-        print(f"❌ Cannot connect to API (is it running on port 5174?)")
+            print(f"❌ Connection error: {e}")
         return False, None
     except Exception as e:
         print(f"❌ Error: {e}")
